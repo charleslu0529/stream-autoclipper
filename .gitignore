@@ -1,0 +1,27 @@
+# secrets & local config
+config.yaml
+secrets/
+.env
+
+# media & generated output
+output/
+data/
+*.mkv
+*.mp4
+*.mov
+*.flv
+*.wav
+chat*.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

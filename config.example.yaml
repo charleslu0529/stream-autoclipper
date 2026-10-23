@@ -1,0 +1,22 @@
+# Copy to config.yaml (gitignored) and fill in your values.
+
+llm:
+  base_url: http://localhost:20128/v1   # OmniRoute gateway (OpenAI-compatible)
+  api_key: YOUR_OMNIROUTE_KEY           # Dashboard -> Endpoints
+  text_model: clipper-text              # OmniRoute combo; put a paid model first later, no code changes
+  vision_model: clipper-vision
+  max_concurrency: 2                    # stay friendly to free-tier rate limits
+  retries: 3
+
+signals:
+  mic_track: null      # audio stream index of a mic-only track (0 = first audio track); null = first track
+  chat_lag_s: 6        # chat reacts a few seconds after the moment
+  pre_s: 40            # lead-in before the peak
+  post_s: 20           # tail after the peak
+  min_gap_s: 60        # minimum spacing between candidates
+  top_n: 40
+  min_score: 2.5
+  weights:
+    audio: 1.0
+    chat: 1.5
+    marker: 5.0
