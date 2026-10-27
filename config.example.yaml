@@ -16,6 +16,7 @@ signals:
   min_gap_s: 60        # minimum spacing between candidates
   top_n: 40
   min_score: 2.5
+  skip_edges_s: 90     # ignore starting-soon / outro screens
   weights:
     audio: 1.0
     chat: 1.5

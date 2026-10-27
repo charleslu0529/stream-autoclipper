@@ -52,6 +52,17 @@ python src/signals.py "/path/to/recording.mkv" --chat chat.json --previews 10
 
 Output: `output/<vod>/candidates.csv` plus rough preview clips of the top picks.
 
+### Game events (Valorant)
+
+`src/visual_events.py` scans the kill feed for the **III / IV / V badge** Valorant shows next to *your* entry on your 3rd / 4th / 5th kill of a round, and feeds 3K / 4K / ACE events into the ranking. It doesn't depend on agent, weapon skin or Riot name. Optional banner templates (e.g. CLUTCH) can be added per game in `assets/<game>/`.
+
+```bash
+python src/visual_events.py detect "/path/to/vod.mp4" --game valorant        # events only
+python src/signals.py "/path/to/vod.mp4" --chat chat.json --game valorant    # full ranking
+```
+
+Decoding 1080p60 video is the slow part; `hwaccel: auto` in the profile uses the GPU decoder.
+
 Tip: record your mic on its own OBS audio track and set `signals.mic_track`. Otherwise game audio (gunfire, explosions) shows up as "excitement".
 
 ## Tests

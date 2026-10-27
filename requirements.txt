@@ -3,4 +3,5 @@ pydantic
 pillow
 numpy
 pyyaml
+opencv-python-headless
 pytest

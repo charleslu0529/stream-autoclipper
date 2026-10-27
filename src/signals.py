@@ -36,7 +36,9 @@ DEFAULTS = {
     "min_gap_s": 60,         # don't pick two peaks closer than this
     "top_n": 40,             # max candidates per VOD
     "min_score": 2.5,        # combined score threshold
-    "weights": {"audio": 1.0, "chat": 1.5, "marker": 5.0},
+    "skip_edges_s": 90,      # ignore the first/last N seconds (starting soon / outro screens, baseline edge effects)
+    "game": None,            # e.g. "valorant" -> also detect on-screen events (assets/<game>/profile.yaml)
+    "weights": {"audio": 1.0, "chat": 1.5, "marker": 5.0, "game": 1.0},
     "funny_tokens": [
         "kekw", "kekl", "lul", "lulw", "omegalul", "icant", "pepelaugh", "lmao", "lmfao", "lol",
         "xd", "dead", "clip", "clipit", "💀", "😂", "🤣",
@@ -174,11 +176,15 @@ def main():
     ap.add_argument("vod", type=Path)
     ap.add_argument("--chat", type=Path, help="TwitchDownloaderCLI chat JSON")
     ap.add_argument("--markers", type=Path, help="text file of timestamps")
+    ap.add_argument("--game", help="game profile for visual events, e.g. valorant (overrides config)")
     ap.add_argument("--previews", type=int, default=0, help="cut quick preview clips for the top N")
     ap.add_argument("--out", type=Path, default=ROOT / "output")
     args = ap.parse_args()
     cfg = load_config()
     w = cfg["weights"]
+    for label, path in (("VOD", args.vod), ("chat", args.chat), ("markers", args.markers)):
+        if path is not None and not path.is_file():
+            raise SystemExit(f"{label} file not found: {path}")
 
     dur = probe_duration(args.vod)
     print(f"VOD {args.vod.name}: {hms(dur)}")
@@ -201,9 +207,23 @@ def main():
         lo, hi = max(0, int(m) - 30), min(n, int(m) + 5)  # marker is usually pressed just after the moment
         marker[lo:hi] = 1.0
 
-    score = (w["audio"] * np.minimum(a_z, 6) + w["chat"] * np.minimum(c_z, 6) + w["marker"] * marker)
+    game = args.game or cfg.get("game")
+    game_s, game_events = np.zeros(n), []
+    if game:
+        import visual_events  # needs opencv; only loaded when a game profile is used
+        game_events = visual_events.detect(args.vod, game)
+        game_s = visual_events.event_series(game_events, n)
+        print(f"[{game}] {len(game_events)} events: " + ", ".join(
+            f"{e['event']}@{hms(e['t'])}" for e in game_events[:12]))
+
+    score = (w["audio"] * np.minimum(a_z, 6) + w["chat"] * np.minimum(c_z, 6) + w["marker"] * marker
+             + w.get("game", 1.0) * game_s)
     if not args.chat:
         score = score * 1.5  # keep thresholds comparable when audio is the only signal
+    edge = int(cfg["skip_edges_s"])
+    if edge:
+        score[:edge] = 0
+        score[-edge:] = 0
     peaks = pick_peaks(score, int(cfg["min_gap_s"]), int(cfg["top_n"]), float(cfg["min_score"]))
 
     out_dir = args.out / args.vod.stem
@@ -218,6 +238,7 @@ def main():
             "rank": rank, "peak": hms(p), "start_s": start, "end_s": end,
             "score": round(float(score[p]), 2), "audio_z": round(float(a_z[p]), 2),
             "chat_z": round(float(c_z[p]), 2), "marker": int(marker[p] > 0),
+            "game_event": next((e["event"] for e in game_events if start <= e["t"] <= end), ""),
             "chat_msgs": len(window_msgs), "top_chat": " ".join(f"{wd}x{c}" for wd, c in top_words),
         })
 
@@ -230,7 +251,7 @@ def main():
     print(f"\n{len(rows)} candidates -> {csv_path}")
     for r in rows[:15]:
         print(f"  #{r['rank']:>2} {r['peak']}  score {r['score']:>5}  audio {r['audio_z']:>4}  "
-              f"chat {r['chat_z']:>4}  {'M ' if r['marker'] else '  '}{r['top_chat']}")
+              f"chat {r['chat_z']:>4}  {'M ' if r['marker'] else '  '}{r['game_event'].upper() + ' ' if r['game_event'] else ''}{r['top_chat']}")
 
     for r in rows[: args.previews]:
         clip = out_dir / f"preview_{r['rank']:02d}_{r['peak'].replace(':', '-')}.mp4"

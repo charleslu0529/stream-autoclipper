@@ -34,3 +34,26 @@ def test_chat_burst_scores_higher_than_quiet_chat():
     z = signals.chat_z(signals.chat_series(msgs, 600, lag=6))
     assert z[114:130].max() > 5
     assert z[400:500].max() < 1.5
+
+
+def test_bigger_game_event_supersedes_smaller():
+    import visual_events
+    profile = {"supersedes": {"ace": ["4k", "3k"], "4k": ["3k"]}, "supersede_window_s": 20}
+    events = [{"t": 100.0, "event": "3k", "score": 3}, {"t": 108.0, "event": "ace", "score": 6},
+              {"t": 300.0, "event": "3k", "score": 3}]
+    kept = visual_events.suppress_lesser(events, profile)
+    assert [(e["event"], e["t"]) for e in kept] == [("ace", 108.0), ("3k", 300.0)]
+
+
+def test_event_series_spreads_score_before_banner():
+    import visual_events
+    s = visual_events.event_series([{"t": 50.0, "event": "clutch", "score": 5}], 100)
+    assert s[44] == 5 and s[52] == 5 and s[43] == 0 and s[53] == 0
+
+
+def test_killfeed_badges_on_real_frame():
+    import cv2
+    import visual_events
+    feed = cv2.imread(str(Path(__file__).parent / "fixtures" / "valorant_killfeed_ace.png"))
+    found = {e for e, *_ in visual_events.badges_in_frame(feed, visual_events.load_badges("valorant"))}
+    assert found == {"4k", "ace"}  # frame from an ACE round: IV and V badges on screen

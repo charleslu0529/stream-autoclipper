@@ -1,0 +1,32 @@
+# Valorant profile for src/visual_events.py
+
+# --- Kill feed: 3K / 4K / ACE from the III / IV / V badge next to YOUR kill-feed entry ----------
+# Works with any agent, weapon skin and Riot name. Templates: badge_3k.png, badge_4k.png, badge_ace.png
+# (cut from 1920x1080 footage; frames are scaled to 1080p first, so 720p VODs work too).
+killfeed:
+  enabled: true
+  fps: 4                          # kill-feed samples per second
+  region: [1250, 30, 1915, 440]   # x0, y0, x1, y1 in 1920x1080 pixels (top-right kill feed)
+  threshold: 0.78                 # template match confidence (real badges score ~0.82-1.0)
+  cooldown_s: 8                   # one event per badge level per streak
+  scores: {3k: 3, 4k: 4, ace: 6}
+  hwaccel: auto                   # GPU video decoding (the slow part); set to null if ffmpeg complains
+
+# --- Banner templates (optional) ----------------------------------------------------------------
+# Add <event>.png cut with:  python src/visual_events.py grab "<vod>" --at H:MM:SS
+# region = [x0, y0, x1, y1] as fractions of the frame.
+fps: 2
+width: 960        # frames scaled to 960x540 grayscale for banner matching
+cooldown_s: 4
+
+events:
+  clutch:         # round-end CLUTCH banner
+    score: 5
+    threshold: 0.75
+    region: [0.25, 0.05, 0.75, 0.50]
+
+# when a bigger event fires within supersede_window_s, drop the smaller ones
+supersedes:
+  ace: [4k, 3k]
+  4k: [3k]
+supersede_window_s: 20
