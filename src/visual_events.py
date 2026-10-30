@@ -76,8 +76,10 @@ def region_px(region, w, h):
 
 
 # ---------------------------------------------------------------- kill feed (Valorant)
-# Valorant puts a teal badge with a roman numeral (III / IV / V) next to YOUR kill-feed entry when
-# it's your 3rd / 4th / 5th kill of the round. That's independent of agent, weapon skin and Riot name.
+# Valorant puts a teal badge with a roman numeral (III / IV / V) next to a kill-feed entry on a player's
+# 3rd / 4th / 5th kill of the round. That's independent of agent, weapon skin and Riot name.
+# While you're dead and spectating, the badges belong to the teammate you're watching - but only YOUR
+# entries have the gold edge right next to the badge, so we require that gold edge.
 BADGE_EVENTS = {"3k": "badge_3k.png", "4k": "badge_4k.png", "ace": "badge_ace.png"}
 
 
@@ -90,10 +92,13 @@ def load_badges(game: str) -> dict:
     return out
 
 
-def badges_in_frame(feed_bgr: np.ndarray, badges: dict, threshold: float = 0.78) -> list[tuple[str, float, int, int]]:
-    """(event, confidence, x, y) for each kill-count badge visible in a kill-feed crop."""
+def badges_in_frame(feed_bgr: np.ndarray, badges: dict, threshold: float = 0.78,
+                    own_edge_min: float = 0.1) -> list[tuple[str, float, int, int]]:
+    """(event, confidence, x, y) for each kill-count badge on YOUR kill-feed entries in a kill-feed crop."""
     gray = cv2.cvtColor(feed_bgr, cv2.COLOR_BGR2GRAY)
-    teal = cv2.inRange(cv2.cvtColor(feed_bgr, cv2.COLOR_BGR2HSV), (70, 60, 90), (100, 255, 255))
+    hsv = cv2.cvtColor(feed_bgr, cv2.COLOR_BGR2HSV)
+    teal = cv2.inRange(hsv, (70, 60, 90), (100, 255, 255))
+    gold = cv2.inRange(hsv, (20, 70, 150), (38, 255, 255))
     found = []
     for event, tpl in badges.items():
         th, tw = tpl.shape
@@ -104,7 +109,10 @@ def badges_in_frame(feed_bgr: np.ndarray, badges: dict, threshold: float = 0.78)
                 break
             r[max(0, y - 8):y + 8, max(0, x - 8):x + 8] = -1
             ring = teal[max(0, y - 5):y + th + 5, max(0, x - 5):x + tw + 5]
-            if ring.mean() / 255 >= 0.25:  # numeral must sit on the teal badge, not random white pixels
+            if ring.mean() / 255 < 0.25:  # numeral must sit on the teal badge, not random white pixels
+                continue
+            edge = gold[max(0, y - 4):y + th + 4, x + tw:x + tw + 22]
+            if edge.size and edge.mean() / 255 >= own_edge_min:  # gold edge = your entry, not a spectated teammate's
                 found.append((event, round(conf, 3), x, y))
     found.sort(key=lambda f: -f[1])
     keep = []  # III and IV overlap a little: keep the best template per location
@@ -120,11 +128,12 @@ def detect_killfeed(vod: Path, game: str, cfg: dict) -> list[dict]:
         print(f"[{game}] killfeed: no badge templates - skipping")
         return []
     fps, thr = float(cfg.get("fps", 4)), float(cfg.get("threshold", 0.78))
+    own_edge = float(cfg.get("own_edge_min", 0.1))
     scores, cooldown = cfg.get("scores", {}), float(cfg.get("cooldown_s", 8))
     print(f"[{game}] killfeed: scanning for 3K / 4K / ACE badges at {fps} fps ...")
     events, last = [], {}
     for t, feed in frames(vod, fps, 1920, 1080, crop=tuple(cfg["region"]), color=True, hwaccel=cfg.get("hwaccel")):
-        for event, conf, _, _ in badges_in_frame(feed, badges, thr):
+        for event, conf, _, _ in badges_in_frame(feed, badges, thr, own_edge):
             if t - last.get(event, -1e9) >= cooldown:
                 events.append({"t": round(t, 1), "event": event, "confidence": conf,
                                "score": float(scores.get(event, 3))})

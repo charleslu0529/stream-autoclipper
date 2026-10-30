@@ -9,6 +9,7 @@ killfeed:
   region: [1250, 30, 1915, 440]   # x0, y0, x1, y1 in 1920x1080 pixels (top-right kill feed)
   threshold: 0.78                 # template match confidence (real badges score ~0.82-1.0)
   cooldown_s: 8                   # one event per badge level per streak
+  own_edge_min: 0.1               # gold edge next to the badge = your entry (spectated teammates have none)
   scores: {3k: 3, 4k: 4, ace: 6}
   hwaccel: auto                   # GPU video decoding (the slow part); set to null if ffmpeg complains
 

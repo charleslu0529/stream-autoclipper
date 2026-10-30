@@ -57,3 +57,11 @@ def test_killfeed_badges_on_real_frame():
     feed = cv2.imread(str(Path(__file__).parent / "fixtures" / "valorant_killfeed_ace.png"))
     found = {e for e, *_ in visual_events.badges_in_frame(feed, visual_events.load_badges("valorant"))}
     assert found == {"4k", "ace"}  # frame from an ACE round: IV and V badges on screen
+
+
+def test_spectated_teammates_badge_is_ignored():
+    import cv2
+    import visual_events
+    # dead and spectating a teammate who has a 3K: badge present, but it isn't ours
+    feed = cv2.imread(str(Path(__file__).parent / "fixtures" / "valorant_killfeed_spectating.png"))
+    assert visual_events.badges_in_frame(feed, visual_events.load_badges("valorant")) == []
